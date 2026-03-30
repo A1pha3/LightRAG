@@ -14,8 +14,8 @@
 ### 🔰 第一阶段：新手起步 (Beginner)
 **[01. 新手入门：快速上手指南](./01-getting-started.md)**
 - 为什么需要 LightRAG？它解决了什么痛点？
-- 本地开发环境的快速安装 (`uv` 构建)。
-- 编写并运行你的第一个 LightRAG 混合查询脚本。
+- 本地开发环境的快速安装 (`uv` 构建) 与离线部署思路。
+- 编写并运行你的第一个 LightRAG 混合查询脚本，掌握 `top_k` 参数调优。
 
 ### ⚙️ 第二阶段：核心原理 (Intermediate)
 **[02. 核心概念：架构与查询模式深度解析](./02-core-architecture.md)**
@@ -30,8 +30,8 @@
 ### 🚀 第三阶段：生产架构 (Expert)
 **[04. 专家级存储：图数据库与企业级后端](./04-enterprise-storage.md)**
 - 告别本地 JSON：如何部署并连接 Neo4j 获得极致的图遍历性能。
-- 一体化大一统：使用 PostgreSQL（+ pgvector + AGE）处理所有存储需求。
-- 多租户与数据隔离（Workspace 机制）。
+- 一体化大一统：使用 PostgreSQL（+ pgvector + AGE）或 OpenSearch 处理所有存储需求。
+- 多租户数据隔离（Workspace 机制）与高并发插入防限流（Rate Limit）指南。
 
 **[05. 生产部署：API 服务与 Web UI](./05-production-deployment.md)**
 - 使用交互式向导（Setup Wizard）自动生成安全配置。
@@ -47,7 +47,8 @@
 1. **必须初始化**：在实例化 `LightRAG` 后，永远不要忘记调用 `await rag.initialize_storages()`。
 2. **上下文窗口**：用于图谱提取的 LLM 必须具备大上下文能力。如果使用 Ollama，必须显式通过 `llm_model_kwargs` 将 `num_ctx` 设置为至少 `32768`。
 3. **更换模型需清空数据**：一旦改变了 Embedding 模型，由于向量维度不匹配，**必须**清空原有的向量存储目录或数据库表。
-4. **推荐的查询模式**：在配置了 Reranker 的生产环境中，强烈建议将 `mix` 作为默认查询模式。
+4. **并发插入限制**：批量处理大量文档时，建议将 `max_parallel_insert` 控制在 10 以内，以避免触发 LLM 厂商的 429 请求超限错误。
+5. **推荐的查询模式**：在配置了 Reranker 的生产环境中，强烈建议将 `mix` 作为默认查询模式。
 
 ---
-*本系列文档由 `cn-doc-writer` AI 专家辅助构建。如果您在阅读过程中发现任何纰漏或需要补充的章节，欢迎在 GitHub 提交 Issue 或 PR！*
+*本系列文档由 `cn-doc-writer` 结合 `alpha-loop` AI 引擎自主迭代优化构建，确保内容达到专家级技术文档标准。如果您在阅读过程中发现任何纰漏或需要补充的章节，欢迎在 GitHub 提交 Issue 或 PR！*

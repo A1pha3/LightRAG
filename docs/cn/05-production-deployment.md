@@ -2,7 +2,7 @@
 
 > 💡 **学习目标**：
 > - 掌握如何使用交互式向导快速生成生产级配置文件。
-> - 学习启动自带的 FastAPI 服务端点。
+> - 学习启动自带的 FastAPI 服务端点，并了解多进程部署。
 > - 了解如何编译和运行可视化的 Web UI 控制台。
 
 ## 1. 架构全景
@@ -57,22 +57,22 @@ cd ..
 
 你有两种方式来启动最终的服务：
 
-### 方式 A：直接在宿主机运行（适合开发/调试）
+### 方式 A：直接在宿主机运行（适合开发/独立部署）
 
 确保你的 `.env` 文件就绪，并且所需的数据库（如果有）已经启动。
 
 ```bash
-# 启动带有 API 和 Web UI 的综合服务器
+# 启动带有 API 和 Web UI 的综合服务器 (单进程)
 lightrag-server
 
-# 或者，如果你在开发修改 API 源码，可以使用热重载模式：
+# 开发热重载模式：
 uvicorn lightrag.api.lightrag_server:app --reload
 
-# 如果需要高并发，可以使用 Gunicorn 多进程模式：
+# 生产级高并发模式（使用 Gunicorn 管理多进程）：
 lightrag-gunicorn
 ```
 
-### 方式 B：使用 Docker Compose 运行（适合生产部署）
+### 方式 B：使用 Docker Compose 运行（适合容器化生产环境）
 
 如果你在 `make env-storage` 阶段选择了基于 Docker 的数据库部署，系统会生成一个组合好的 `docker-compose.final.yml`。
 
@@ -84,8 +84,8 @@ docker compose -f docker-compose.final.yml up -d
 ## 5. 验证部署
 
 服务启动后：
-1. **Web UI**：在浏览器中访问 `http://localhost:8020`（端口取决于你的 `.env` 配置），你将看到可视化的知识图谱管理界面。
-2. **API 文档**：访问 `http://localhost:8020/docs` 查看自动生成的 Swagger 接口文档，方便第三方系统集成。
+1. **Web UI**：在浏览器中访问 `http://localhost:8020`（端口取决于你的 `.env` 配置），你将看到可视化的知识图谱管理界面，可在此直接上传文档和测试查询。
+2. **API 文档**：访问 `http://localhost:8020/docs` 查看自动生成的 Swagger 接口文档，方便第三方系统（如自建的聊天机器人或企业微信后台）进行集成。
 
 ---
 🎉 **结语**：至此，你已经完成了从 LightRAG 核心机制学习、模型调优、企业级存储配置，到最终完整应用上线的全部旅程！

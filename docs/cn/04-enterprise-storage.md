@@ -2,9 +2,9 @@
 
 > 💡 **学习目标**：
 > - 了解为什么在生产环境中需要替换默认的本地文件存储。
-> - 掌握如何配置 Neo4j 图数据库。
+> - 掌握如何配置 Neo4j 图数据库，并了解其性能优势。
 > - 学习使用 PostgreSQL 打造统一的存储底座。
-> - 掌握基于 Workspace 的数据隔离机制。
+> - 掌握基于 Workspace 的数据隔离机制与大规模调优技巧。
 
 ## 1. 为什么要升级存储后端？
 
@@ -13,15 +13,15 @@
 - **不支持并发**：本地文件无法支持多个 LightRAG API 实例同时进行读写。
 - **缺乏持久化保障**：进程崩溃可能导致数据损坏。
 
-为此，LightRAG 提供了丰富的企业级后端支持，包括 PostgreSQL、MongoDB、Neo4j、Milvus、Redis 等。
+为此，LightRAG 提供了丰富的企业级后端支持，包括 PostgreSQL、MongoDB、Neo4j、Milvus、Redis、OpenSearch 等。
 
 ## 2. 部署 Neo4j 图数据库（强推）
 
-在所有的图存储后端中，**Neo4j 提供了最佳的生产级性能**。它能够以极快的速度执行复杂的图遍历和子图提取。
+在所有的图存储后端中，**Neo4j 提供了最佳的生产级性能**。它能够以极快的速度执行复杂的图遍历和子图提取。根据官方测试，在生产环境中，Neo4j 的性能显著优于带有 AGE 插件的 PostgreSQL。
 
 ### 步骤 2.1：启动 Neo4j 服务
 
-使用 Docker 快速启动一个 Neo4j 实例：
+使用 Docker 快速启动一个 Neo4j 实例（社区版）：
 
 ```bash
 docker run -d \
@@ -51,9 +51,9 @@ async def main():
         working_dir="./rag_storage",
         # 显式指定图存储引擎为 Neo4j
         graph_storage="Neo4JStorage",
-        # 向量和 KV 依然可以使用其他的，比如 PostgreSQL
-        # vector_storage="PGVectorStorage",
-        # kv_storage="PGKVStorage",
+        # 向量和 KV 依然可以使用其他的，比如 PostgreSQL 或 Milvus
+        # vector_storage="MilvusVectorDBStorage",
+        # kv_storage="RedisKVStorage",
         # ... LLM 配置 ...
     )
     
@@ -65,29 +65,24 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 3. 大一统方案：PostgreSQL
+## 3. 大一统方案：PostgreSQL 与 OpenSearch
 
-如果你不希望维护多种数据库（同时维护 Neo4j、Milvus、Redis 会增加运维成本），你可以使用 PostgreSQL 作为**一体化存储方案**。
+如果你不希望维护多种数据库（同时维护 Neo4j、Milvus、Redis 会增加极大的运维成本），你可以使用单一数据库作为**一体化存储方案**。
 
+### 方案 A：PostgreSQL
 PostgreSQL 通过扩展插件，可以同时胜任四大存储角色：
-- **KV 存储 / DocStatus 存储**：原生关系型表。
-- **向量存储**：依赖 `pgvector` 插件。
-- **图存储**：依赖 Apache AGE 插件。
+- **KV 存储 / DocStatus 存储**：原生关系型表（`PGKVStorage`, `PGDocStatusStorage`）。
+- **向量存储**：依赖 `pgvector` 插件（`PGVectorStorage`）。
+- **图存储**：依赖 Apache AGE 插件（`PGGraphStorage`）。
 
 > ⚠️ **注意**：你需要部署带有 `pgvector` 和 `age` 插件的 PostgreSQL（建议版本 >= 16.6）。
 
-配置方式同样简单：
-
-```python
-rag = LightRAG(
-    working_dir="./rag_storage",
-    kv_storage="PGKVStorage",
-    vector_storage="PGVectorStorage",
-    graph_storage="PGGraphStorage",
-    doc_status_storage="PGDocStatusStorage",
-)
-```
-*前提是你在环境中配置了 `POSTGRES_URI` 环境变量。*
+### 方案 B：OpenSearch (v2.12+)
+OpenSearch 同样支持全量存储，特别适合已有 ELK 技术栈的团队：
+- `OpenSearchKVStorage`
+- `OpenSearchVectorDBStorage`
+- `OpenSearchGraphStorage`
+- `OpenSearchDocStatusStorage`
 
 ## 4. 数据隔离机制（Workspace）
 
@@ -112,4 +107,20 @@ rag_user_b = LightRAG(
 - **关系型数据库（如 PostgreSQL）**：会在表中增加一个 `workspace` 列进行数据行级别的过滤。
 - **文档数据库（如 MongoDB）**：会使用 `tenant_a_finance` 作为集合（Collection）的前缀。
 
-掌握了存储引擎的配置后，你的系统已经具备了生产环境的承载能力。最后，请阅读 [生产部署：API 服务与 Web UI](./05-production-deployment.md) 来完成系统的最终上线。
+## 5. 专家级调优：大规模并发插入
+
+在处理海量文档时，单线程插入会非常缓慢。你可以通过 `max_parallel_insert` 提升并发：
+
+```python
+rag = LightRAG(
+    # ... 其他配置 ...
+    max_parallel_insert=4 # 默认是 2
+)
+
+# 批量传入数组
+await rag.ainsert(["文档1", "文档2", "文档3", "文档4", "文档5"])
+```
+
+> ⚠️ **性能瓶颈提示**：建议将 `max_parallel_insert` 控制在 10 以内。真正的瓶颈通常不在于 LightRAG 框架，而在于**你的 LLM API 的并发速率限制（Rate Limits）**。并发过高会导致 LLM 服务返回 HTTP 429 (Too Many Requests) 错误。
+
+掌握了存储引擎的配置后，你的系统已经具备了生产环境的承载能力。最后，请阅读 [05. 生产部署：API 服务与 Web UI](./05-production-deployment.md) 来完成系统的最终上线。
